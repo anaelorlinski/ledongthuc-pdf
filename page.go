@@ -823,7 +823,6 @@ func (p Page) Content() Content {
 		return Content{}
 	}
 	strm := p.V.Key("Contents")
-	var enc TextEncoding = &nopEncoder{}
 
 	var g = gstate{
 		Th:  1,
@@ -832,6 +831,10 @@ func (p Page) Content() Content {
 
 	var text []Text
 	showText := func(s string) {
+		enc := g.Tf.enc
+		if enc == nil { // no Tf yet
+			enc = &nopEncoder{}
+		}
 		n := 0
 		decoded := enc.Decode(s)
 		for _, ch := range decoded {
@@ -979,12 +982,12 @@ func (p Page) Content() Content {
 			}
 			f := args[0].Name()
 			g.Tf = Font{res.Key("Font").Key(f), nil}
-			enc = g.Tf.Encoder()
-			if enc == nil {
+			// The encoder is cached in g.Tf, so q/Q save and restore it with the font
+			if g.Tf.Encoder() == nil {
 				if DebugOn {
 					println("no cmap for", f)
 				}
-				enc = &nopEncoder{}
+				g.Tf.enc = &nopEncoder{}
 			}
 			g.Tfs = args[1].Float64()
 
