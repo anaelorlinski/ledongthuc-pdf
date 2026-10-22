@@ -203,6 +203,59 @@ func (f Font) Width(code int) float64 {
 	return f.V.Key("Widths").Index(code - first).Float64()
 }
 
+// cidMetrics holds the glyph widths of a Type0 font's descendant CIDFont,
+// in thousandths of text space units.
+type cidMetrics struct {
+	widths   map[int]float64 // from the W array, by CID
+	dw       float64         // default width (DW)
+	identity bool            // Identity-H/V encoding: the 2-byte code is the CID
+}
+
+// width returns the width of the glyph for a 2-byte code.
+func (m cidMetrics) width(code int) float64 {
+	if m.identity {
+		if w, ok := m.widths[code]; ok {
+			return w
+		}
+	}
+	return m.dw
+}
+
+// readCIDMetrics reads the widths of a Type0 font's CIDFont (PDF 32000-1:2008
+// §9.7.4.3). The W array lists either "c [w1 w2 ...]", widths of consecutive
+// CIDs from c, or "cfirst clast w", one width for a range of CIDs.
+func readCIDMetrics(f Font) cidMetrics {
+	cid := f.V.Key("DescendantFonts").Index(0)
+	m := cidMetrics{widths: map[int]float64{}, dw: 1000}
+	if dw := cid.Key("DW"); dw.Kind() == Integer || dw.Kind() == Real {
+		m.dw = dw.Float64()
+	}
+	switch f.V.Key("Encoding").Name() {
+	case "Identity-H", "Identity-V":
+		m.identity = true
+	}
+	w := cid.Key("W")
+	for i := 0; i < w.Len(); {
+		first := int(w.Index(i).Int64())
+		if i+1 < w.Len() && w.Index(i+1).Kind() == Array {
+			arr := w.Index(i + 1)
+			for j := 0; j < arr.Len(); j++ {
+				m.widths[first+j] = arr.Index(j).Float64()
+			}
+			i += 2
+		} else if i+2 < w.Len() {
+			last, width := int(w.Index(i+1).Int64()), w.Index(i+2).Float64()
+			for c := first; c <= last && c-first < 1<<16; c++ {
+				m.widths[c] = width
+			}
+			i += 3
+		} else {
+			break
+		}
+	}
+	return m
+}
+
 // Encoder returns the encoding between font code point sequences and UTF-8.
 //
 // The receiver is a pointer so the parsed encoding is cached on the Font;
@@ -831,13 +884,29 @@ func (p Page) Content() Content {
 	}
 
 	var text []Text
+	cidFonts := map[objptr]cidMetrics{}
 	showText := func(s string) {
+		var widths []float64
+		if g.Tf.V.Key("Subtype").Name() == "Type0" {
+			m, ok := cidFonts[g.Tf.V.ptr]
+			if !ok {
+				m = readCIDMetrics(g.Tf)
+				cidFonts[g.Tf.V.ptr] = m
+			}
+			for i := 0; i+1 < len(s); i += 2 {
+				widths = append(widths, m.width(int(s[i])<<8|int(s[i+1])))
+			}
+		} else {
+			for i := 0; i < len(s); i++ {
+				widths = append(widths, g.Tf.Width(int(s[i])))
+			}
+		}
 		n := 0
 		decoded := enc.Decode(s)
 		for _, ch := range decoded {
 			var w0 float64
-			if n < len(s) {
-				w0 = g.Tf.Width(int(s[n]))
+			if n < len(widths) {
+				w0 = widths[n]
 			}
 			n++
 
