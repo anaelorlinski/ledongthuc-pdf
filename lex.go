@@ -119,6 +119,25 @@ func (b *buffer) unreadByte() {
 	}
 }
 
+// skipInlineImage consumes inline image data up to and including the EI operator
+func (b *buffer) skipInlineImage() {
+	var p2, p1 byte = ' ', ' ' // two previous bytes
+	for {
+		c := b.readByte()
+		if b.eof {
+			return
+		}
+		if p1 == 'I' && p2 == 'E' && isSpace(c) {
+			return
+		}
+		// EI must be preceded by whitespace to not match inside the data
+		if c == 'E' && !isSpace(p1) {
+			c = 0
+		}
+		p2, p1 = p1, c
+	}
+}
+
 func (b *buffer) unreadToken(t token) {
 	b.unread = append(b.unread, t)
 }

@@ -80,6 +80,11 @@ Reading:
 		}
 		if kw, ok := tok.(keyword); ok {
 			switch kw {
+			case "ID":
+				// Inline image data is binary; lexing it as tokens fails
+				b.skipInlineImage()
+				stk = Stack{}
+				continue
 			case "null", "[", "]", "<<", ">>":
 				break
 			default:
