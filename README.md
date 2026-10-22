@@ -1,3 +1,34 @@
+# ledongthuc/pdf — patch stack `patchstack-1`
+
+**This branch is a patch stack, not a development fork.** It is upstream
+[ledongthuc/pdf](https://github.com/ledongthuc/pdf) `master` at `5e46805`
+(2026-10-20) with the patches below applied on top, one commit per patch, in
+this order. A patch stack branch is never rewritten: when upstream moves or
+patches get merged, a new one is built (`patchstack-2`, `patchstack-3`, ...).
+
+| # | Patch | Branch (from upstream `master`) | Upstream status |
+|---|---|---|---|
+| 1 | fix: skip inline image data in content streams | `fix-content-inline-image` | overlaps open PR #89 |
+| 2 | fix: Content returns the text of form XObjects | `fix-content-form-xobjects` | PR #97 |
+| 3 | fix: Q restores the text encoding of the restored font | `fix-content-font-state` | not proposed yet |
+| 4 | fix: apply word spacing in Content | `fix-content-word-spacing` | not proposed yet |
+| 5 | fix: use CIDFont widths for Type0 fonts in Content | `fix-content-cid-widths` | not proposed yet |
+| 6 | feat: report the size and direction of rotated text | `feat-content-text-angle` | not proposed yet |
+| 7 | Fork only: text extraction heuristics in Content | — | not for upstream |
+| 8 | This README section | — | not for upstream |
+
+The module path is unchanged (`github.com/ledongthuc/pdf`); use it with this line in `go.mod`, then `go mod tidy` pins it to a commit:
+
+```
+replace github.com/ledongthuc/pdf => github.com/anaelorlinski/ledongthuc-pdf patchstack-1
+```
+
+Building the next stack: branch from the new upstream `master`, cherry-pick the
+patches that are still needed (drop the merged ones), then compare with
+`git range-diff master...patchstack-1 master...patchstack-2`.
+
+---
+
 # PDF Reader
 
 [![Built with WeBuild](https://raw.githubusercontent.com/webuild-community/badge/master/svg/WeBuild.svg)](https://webuild.community)
