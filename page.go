@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"strings"
 )
@@ -504,6 +505,7 @@ type Text struct {
 	Y        float64 // the Y coordinate, in points, increasing bottom to top
 	W        float64 // the width of the text, in points
 	S        string  // the actual UTF-8 text
+	Angle    float64 // the direction of the text, in radians counterclockwise from the X axis (0 = left to right)
 }
 
 // A Rect represents a rectangle.
@@ -847,7 +849,17 @@ func (p Page) Content() Content {
 			}
 
 			Trm := matrix{{g.Tfs * g.Th, 0, 0}, {0, g.Tfs, 0}, {0, g.Trise, 1}}.mul(g.Tm).mul(g.CTM)
-			text = append(text, Text{f, Trm[0][0], Trm[2][0], Trm[2][1], w0 / 1000 * Trm[0][0], string(ch)})
+			// The size is the length of the baseline vector, which Trm[0][0] alone is only for unrotated text
+			size := math.Hypot(Trm[0][0], Trm[0][1])
+			text = append(text, Text{
+				Font:     f,
+				FontSize: size,
+				X:        Trm[2][0],
+				Y:        Trm[2][1],
+				W:        w0 / 1000 * size,
+				S:        string(ch),
+				Angle:    math.Atan2(Trm[0][1], Trm[0][0]),
+			})
 
 			tx := w0/1000*g.Tfs + g.Tc
 			tx *= g.Th
