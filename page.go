@@ -12,6 +12,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // A Page represent a single page in a PDF file.
@@ -202,6 +203,22 @@ func (f Font) Width(code int) float64 {
 		return 0
 	}
 	return f.V.Key("Widths").Index(code - first).Float64()
+}
+
+// simpleWidth returns the width of a code in a simple font. Fonts without width
+// tables (e.g. non-embedded standard fonts) get an average width so that the
+// glyphs of a run don't all land on the same position.
+func simpleWidth(f Font, code int) float64 {
+	if f.V.Key("Widths").Len() > 0 {
+		return f.Width(code)
+	}
+	if code == ' ' {
+		return 278
+	}
+	if strings.Contains(strings.ToLower(f.BaseFont()), "courier") {
+		return 600
+	}
+	return 500
 }
 
 // cidMetrics holds the glyph widths of a Type0 font's descendant CIDFont,
@@ -903,15 +920,25 @@ func (p Page) Content() Content {
 			}
 		} else {
 			for i := 0; i < len(s); i++ {
-				widths = append(widths, g.Tf.Width(int(s[i])))
+				widths = append(widths, simpleWidth(g.Tf, int(s[i])))
 			}
 		}
 		n := 0
 		decoded := enc.Decode(s)
+		// When codes and characters don't pair up (ligatures, multi-rune mappings) spread the run width evenly
+		spread := 0.0
+		if runes := utf8.RuneCountInString(decoded); runes != len(widths) && runes > 0 {
+			for _, w := range widths {
+				spread += w
+			}
+			spread /= float64(runes)
+		}
 		for _, ch := range decoded {
 			var w0 float64
 			space := false
-			if n < len(widths) {
+			if spread > 0 {
+				w0 = spread
+			} else if n < len(widths) {
 				w0 = widths[n]
 				// Word spacing applies to the single-byte code 32 only (PDF 32000-1:2008 §9.3.3)
 				space = len(widths) == len(s) && s[n] == ' '
@@ -1111,7 +1138,7 @@ func (p Page) Content() Content {
 					g.Tm = matrix{{1, 0, 0}, {0, 1, 0}, {tx, 0, 1}}.mul(g.Tm)
 				}
 			}
-			showText("\n")
+			// No "\n" pseudo-glyph here: decoded through the font encoding it became a stray character
 
 		case "TL": // set text leading
 			if len(args) != 1 {
