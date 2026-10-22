@@ -836,8 +836,11 @@ func (p Page) Content() Content {
 		decoded := enc.Decode(s)
 		for _, ch := range decoded {
 			var w0 float64
+			space := false
 			if n < len(s) {
 				w0 = g.Tf.Width(int(s[n]))
+				// Word spacing applies to the single-byte code 32 only (PDF 32000-1:2008 §9.3.3)
+				space = s[n] == ' ' && g.Tf.V.Key("Subtype").Name() != "Type0"
 			}
 			n++
 
@@ -850,6 +853,9 @@ func (p Page) Content() Content {
 			text = append(text, Text{f, Trm[0][0], Trm[2][0], Trm[2][1], w0 / 1000 * Trm[0][0], string(ch)})
 
 			tx := w0/1000*g.Tfs + g.Tc
+			if space {
+				tx += g.Tw
+			}
 			tx *= g.Th
 			g.Tm = matrix{{1, 0, 0}, {0, 1, 0}, {tx, 0, 1}}.mul(g.Tm)
 		}
